@@ -23,23 +23,20 @@ class CustomUser(models.Model):
     class Gender(models.TextChoices):
         MALE = 'Male'
         FEMALE = 'Female'
-        OTHER = 'Other'
 
     class Role(models.TextChoices):
         CLIENT = 'Client'
         MANAGER = 'Manager'
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255)
     birth_date = models.DateField()
-    gender = models.CharField(max_length=10, choices=Gender.choices)
-    email = models.EmailField(unique=True)
-    password = models.CharField(max_length=128)
+    gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices)
     address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.name} ({self.email})"
+        return f"{self.name}"
 
     class Meta:
         db_table = "custom_user"
