@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    User,
+    CustomUser,
     Destination,
     Property,
     PropertyManager,
@@ -9,10 +9,10 @@ from .models import (
     RoomFeature,
     RoomPhoto,
     Proposal,
-    Location
+    Rental
 )
 
-admin.site.register(User)
+admin.site.register(CustomUser)
 admin.site.register(Destination)
 admin.site.register(Property)
 admin.site.register(PropertyManager)
@@ -21,4 +21,4 @@ admin.site.register(Feature)
 admin.site.register(RoomFeature)
 admin.site.register(RoomPhoto)
 admin.site.register(Proposal)
-admin.site.register(Location)
+admin.site.register(Rental)
