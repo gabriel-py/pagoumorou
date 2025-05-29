@@ -1,4 +1,5 @@
 
+from typing import Any
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -34,6 +35,30 @@ class CustomUser(models.Model):
     gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices)
     address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "birth_date": str(self.birth_date),
+            "gender": self.gender,
+            "role": self.role,
+            "user": {
+                "id": self.user.id if self.user else None,
+                "username": self.user.username if self.user else None,
+                "email": self.user.email if self.user else None,
+            },
+            "address": {
+                "id": self.address.id,
+                "street": self.address.street,
+                "number": self.address.number,
+                "complement": self.address.complement,
+                "neighborhood": self.address.neighborhood,
+                "city": self.address.city,
+                "state": self.address.state,
+                "zip_code": self.address.zip_code
+            } if self.address else None
+        }
 
     def __str__(self):
         return f"{self.name}"

@@ -1,0 +1,25 @@
+curl --request POST \
+  --url http://localhost:8000/api/pagoumorou/users/ \
+  --header 'Content-Type: application/json' \
+  --header 'User-Agent: insomnia/11.1.0' \
+  --data '{
+  "user": {
+    "username": "maria12345",
+    "email": "maria@email.com",
+    "password": "senhaSegura"
+  },
+  "name": "Maria Souza",
+  "birth_date": "1997-06-15",
+  "gender": "Female",
+  "role": "Client",
+  "address": {
+    "street": "Av. Brasil",
+    "number": "123",
+    "complement": "Bloco A",
+    "neighborhood": "Centro",
+    "city": "Rio de Janeiro",
+    "state": "RJ",
+    "zip_code": "20000-000"
+  }
+}
+'
