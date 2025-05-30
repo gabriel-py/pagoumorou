@@ -1,5 +1,5 @@
 curl --request PUT \
-  --url http://localhost:8000/api/user/users/1/ \
+  --url http://localhost:8000/api/user/profile/1/ \
   --header 'Content-Type: application/json' \
   --header 'User-Agent: insomnia/11.1.0' \
   --data '{
