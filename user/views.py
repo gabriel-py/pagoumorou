@@ -1,5 +1,4 @@
 from datetime import date
-from operator import add
 from typing import Any
 from django.db import transaction
 from django.db.models import TextChoices
