@@ -1,4 +1,8 @@
-from django.db import IntegrityError, transaction
+from datetime import date
+from operator import add
+from typing import Any
+from django.db import transaction
+from django.db.models import TextChoices
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
@@ -9,9 +13,15 @@ import json
 from .models import Address, Profile
 
 
-def create_address(data):
+def validate_choice(value: str | None, choices_class: type[TextChoices], field_name: str) -> None:
+    if value is not None and value not in choices_class.values:
+        raise ValueError(f"Valor inválido para '{field_name}': {value}. Opções válidas: {', '.join(choices_class.values)}")
+
+
+def create_address(data: Any) -> None | Address:
     if not data:
         return None
+
     return Address.objects.create(
         street=data["street"],
         number=data["number"],
@@ -23,7 +33,7 @@ def create_address(data):
     )
 
 
-def update_address(address, data):
+def update_address(address: Address, data: Any) -> Address:
     address.street = data["street"]
     address.number = data["number"]
     address.complement = data.get("complement")
@@ -32,13 +42,14 @@ def update_address(address, data):
     address.state = data["state"]
     address.zip_code = data["zip_code"]
     address.save()
+
     return address
 
 
-def validate_unique_user_fields(username, email, exclude_id=None):
-    if User.objects.exclude(id=exclude_id).filter(username=username).exists():
+def validate_unique_user_fields(username: str, email: str, user_id: int | None) -> None:
+    if User.objects.exclude(id=user_id).filter(username=username).exists():
         raise ValueError("Este nome de usuário já está em uso.")
-    if User.objects.exclude(id=exclude_id).filter(email=email).exists():
+    if User.objects.exclude(id=user_id).filter(email=email).exists():
         raise ValueError("Este e-mail já está em uso.")
 
 
@@ -47,36 +58,40 @@ class CreateUserView(APIView):
     def post(self, request):
         data = json.loads(request.body)
 
+        validate_unique_user_fields(username=data["user"]["username"], email=data["user"]["email"], user_id=None)
+
+        user: User = User.objects.create_user(
+            username=data["user"]["username"],
+            email=data["user"]["email"],
+            password=data["user"]["password"]
+        )
+
+        user.set_password(data["user"]["password"])
+
         try:
-            validate_unique_user_fields(data["user"]["username"], data["user"]["email"])
+            validate_choice(data.get("gender"), Profile.Gender, "gender")
+            validate_choice(data["role"], Profile.Role, "role")
+        except ValueError as ex:
+            return JsonResponse({"success": False, "error": str(ex)}, status=400)
 
-            user = User.objects.create_user(
-                username=data["user"]["username"],
-                email=data["user"]["email"],
-                password=data["user"]["password"]
-            )
+        birth_date: date | None = parse_date(data["birth_date"])
+        if not birth_date:
+            return JsonResponse({"success": False, "error": "Falha ao processar data de nascimento"}, status=400)
 
-            address: None | Address = create_address(data.get("address"))
+        profile: Profile = Profile.objects.create(
+            user=user,
+            name=data["name"],
+            birth_date=birth_date,
+            gender=data.get("gender"),
+            role=data["role"]
+        )
 
-            profile: Profile = Profile.objects.create(
-                user=user,
-                name=data["name"],
-                birth_date=parse_date(data["birth_date"]),
-                gender=data.get("gender"),
-                role=data["role"],
-                address=address
-            )
+        address: None | Address = create_address(data.get("address"))
+        if address:
+            profile.address = address
+            profile.save()
 
-            return JsonResponse({"success": True, "user": profile.to_dict()}, status=201)
-
-        except KeyError as e:
-            return JsonResponse({"success": False, "error": f"Campo obrigatório faltando: {e}"}, status=400)
-        except ValueError as e:
-            return JsonResponse({"success": False, "error": str(e)}, status=400)
-        except IntegrityError as e:
-            return JsonResponse({"success": False, "error": f"Erro de integridade no banco de dados: {str(e)}"}, status=400)
-        except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)}, status=500)
+        return JsonResponse({"success": True, "data": profile.to_dict()}, status=201)
 
 
 class UpdateUserView(APIView):
@@ -84,42 +99,51 @@ class UpdateUserView(APIView):
     def put(self, request, user_id):
         data = json.loads(request.body)
 
+        user: User = get_object_or_404(User, id=user_id)
+
         try:
-            profile = get_object_or_404(Profile, id=user_id)
-            user = profile.user
+            profile: Profile = Profile.objects.get(user=user)
+        except Profile.DoesNotExist:
+            return JsonResponse({"success": False, "error": f"Usuário não possui perfil associado"}, status=400)
 
-            validate_unique_user_fields(
-                username=data["user"]["username"],
-                email=data["user"]["email"],
-                exclude_id=user.id
-            )
+        validate_unique_user_fields(
+            username=data["user"]["username"],
+            email=data["user"]["email"],
+            user_id=user.id
+        )
 
-            user.username = data["user"]["username"]
-            user.email = data["user"]["email"]
-            if data["user"].get("password"):
-                user.set_password(data["user"]["password"])
-            user.save()
+        user.username = data["user"]["username"]
+        user.email = data["user"]["email"]
 
-            address_data = data.get("address")
-            if address_data:
-                if profile.address:
-                    update_address(profile.address, address_data)
-                else:
-                    profile.address = create_address(address_data)
+        if data["user"].get("password"):
+            user.set_password(data["user"]["password"])
 
-            profile.name = data["name"]
-            profile.birth_date = parse_date(data["birth_date"])
-            profile.gender = data.get("gender")
-            profile.role = data["role"]
-            profile.save()
+        user.save()
 
-            return JsonResponse({"success": True, "user": profile.to_dict()}, status=200)
+        address_data = data.get("address")
+        if address_data:
+            if profile.address:
+                update_address(profile.address, address_data)
+            else:
+                profile.address = create_address(address_data)
 
-        except KeyError as e:
-            return JsonResponse({"success": False, "error": f"Campo obrigatório faltando: {e}"}, status=400)
-        except ValueError as e:
-            return JsonResponse({"success": False, "error": str(e)}, status=400)
-        except IntegrityError as e:
-            return JsonResponse({"success": False, "error": f"Erro de integridade no banco de dados: {str(e)}"}, status=400)
-        except Exception as e:
-            return JsonResponse({"success": False, "error": str(e)}, status=500)
+        profile.name = data["name"]
+
+        birth_date: date | None = parse_date(data["birth_date"])
+        if not birth_date:
+            return JsonResponse({"success": False, "error": "Falha ao processar data de nascimento"}, status=400)
+
+        profile.birth_date = birth_date
+
+        try:
+            validate_choice(data.get("gender"), Profile.Gender, "gender")
+            validate_choice(data["role"], Profile.Role, "role")
+        except ValueError as ex:
+            return JsonResponse({"success": False, "error": str(ex)}, status=400)
+
+        profile.gender = data.get("gender")
+        profile.role = data["role"]
+
+        profile.save()
+
+        return JsonResponse({"success": True, "data": profile.to_dict()}, status=200)
