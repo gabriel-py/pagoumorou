@@ -20,12 +20,12 @@ class Address(models.Model):
 
 class Profile(models.Model):
     class Gender(models.TextChoices):
-        MALE = 'Male'
-        FEMALE = 'Female'
+        MALE = 'MALE'
+        FEMALE = 'FEMALE'
 
     class Role(models.TextChoices):
-        CLIENT = 'Client'
-        MANAGER = 'Manager'
+        CLIENT = 'CLIENT'
+        MANAGER = 'MANAGER'
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255)
