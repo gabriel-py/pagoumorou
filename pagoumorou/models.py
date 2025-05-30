@@ -1,70 +1,7 @@
 
-from typing import Any
 from django.db import models
-from django.contrib.auth.models import User
-
 from pagoumorou.constants import PeriodChoices, StatusChoices
-
-class Address(models.Model):
-    street = models.CharField(max_length=255)
-    number = models.CharField(max_length=20)
-    complement = models.CharField(max_length=255, blank=True, null=True)
-    neighborhood = models.CharField(max_length=255)
-    city = models.CharField(max_length=255)
-    state = models.CharField(max_length=2)
-    zip_code = models.CharField(max_length=15)
-
-    def __str__(self):
-        return f"{self.street}, {self.number} - {self.city}/{self.state}"
-
-    class Meta:
-        db_table = "address"
-
-class CustomUser(models.Model):
-    class Gender(models.TextChoices):
-        MALE = 'Male'
-        FEMALE = 'Female'
-
-    class Role(models.TextChoices):
-        CLIENT = 'Client'
-        MANAGER = 'Manager'
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    name = models.CharField(max_length=255)
-    birth_date = models.DateField()
-    gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
-    role = models.CharField(max_length=10, choices=Role.choices)
-    address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "birth_date": str(self.birth_date),
-            "gender": self.gender,
-            "role": self.role,
-            "user": {
-                "id": self.user.id if self.user else None,
-                "username": self.user.username if self.user else None,
-                "email": self.user.email if self.user else None,
-            },
-            "address": {
-                "id": self.address.id,
-                "street": self.address.street,
-                "number": self.address.number,
-                "complement": self.address.complement,
-                "neighborhood": self.address.neighborhood,
-                "city": self.address.city,
-                "state": self.address.state,
-                "zip_code": self.address.zip_code
-            } if self.address else None
-        }
-
-    def __str__(self):
-        return f"{self.name}"
-
-    class Meta:
-        db_table = "custom_user"
+from user.models import Address, Profile
 
 class Destination(models.Model):
     class DestinationType(models.TextChoices):
@@ -104,11 +41,11 @@ class Property(models.Model):
         db_table = "property"
 
 class PropertyManager(models.Model):
-    custom_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     property = models.ForeignKey(Property, on_delete=models.CASCADE)
 
     def __str__(self):
-        return f"{self.custom_user.name} - {self.property.name}"
+        return f"{self.profile.name} - {self.property.name}"
 
     class Meta:
         db_table = "property_manager"
@@ -158,7 +95,7 @@ class RoomPhoto(models.Model):
         db_table = "room_photo"
 
 class Proposal(models.Model):
-    custom_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='proposals')
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='proposals')
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     proposed_price = models.DecimalField(max_digits=10, decimal_places=2)
     period = models.CharField(max_length=10, choices=PeriodChoices.choices, default=PeriodChoices.SEMESTER)
@@ -167,17 +104,17 @@ class Proposal(models.Model):
     message = models.TextField()
     status = models.CharField(max_length=10, choices=StatusChoices.choices, default=StatusChoices.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
-    reviewed_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_proposals')
+    reviewed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_proposals')
 
     def __str__(self):
-        return f"Proposal by {self.custom_user.name} for {self.room.room_number}"
+        return f"Proposal by {self.profile.name} for {self.room.room_number}"
 
     class Meta:
         db_table = "proposal"
 
 class Rental(models.Model):
     proposal = models.OneToOneField(Proposal, on_delete=models.CASCADE)
-    custom_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -187,7 +124,7 @@ class Rental(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.custom_user.name} stays in {self.room.room_number}"
+        return f"{self.profile.name} stays in {self.room.room_number}"
 
     class Meta:
         db_table = "rental"

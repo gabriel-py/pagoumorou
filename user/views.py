@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from rest_framework.views import APIView
 import json
 
-from .models import Address, CustomUser
+from .models import Address, Profile
 
 class CreateUserView(APIView):
     @transaction.atomic
@@ -33,7 +33,7 @@ class CreateUserView(APIView):
                     zip_code=address_data["zip_code"]
                 )
 
-            custom_user = CustomUser.objects.create(
+            profile = Profile.objects.create(
                 user=user,
                 name=data["name"],
                 birth_date=parse_date(data["birth_date"]),
@@ -42,7 +42,7 @@ class CreateUserView(APIView):
                 address=address
             )
 
-            return JsonResponse({"success": True, "user": custom_user.to_dict()}, status=201)
+            return JsonResponse({"success": True, "user": profile.to_dict()}, status=201)
 
         except KeyError as e:
             return JsonResponse({"success": False, "error": f"Campo obrigatório faltando: {str(e)}"}, status=400)
@@ -67,8 +67,8 @@ class UpdateUserView(APIView):
         data = json.loads(request.body)
 
         try:
-            custom_user = get_object_or_404(CustomUser, id=user_id)
-            user = custom_user.user
+            profile = get_object_or_404(Profile, id=user_id)
+            user = profile.user
 
             username = data["user"]["username"]
             email = data["user"]["email"]
@@ -87,8 +87,8 @@ class UpdateUserView(APIView):
 
             address_data = data.get("address")
             if address_data:
-                if custom_user.address:
-                    address = custom_user.address
+                if profile.address:
+                    address = profile.address
                     address.street = address_data["street"]
                     address.number = address_data["number"]
                     address.complement = address_data.get("complement")
@@ -107,15 +107,15 @@ class UpdateUserView(APIView):
                         state=address_data["state"],
                         zip_code=address_data["zip_code"]
                     )
-                    custom_user.address = address
+                    profile.address = address
 
-            custom_user.name = data["name"]
-            custom_user.birth_date = parse_date(data["birth_date"])
-            custom_user.gender = data.get("gender")
-            custom_user.role = data["role"]
-            custom_user.save()
+            profile.name = data["name"]
+            profile.birth_date = parse_date(data["birth_date"])
+            profile.gender = data.get("gender")
+            profile.role = data["role"]
+            profile.save()
 
-            return JsonResponse({"success": True, "user": custom_user.to_dict()}, status=200)
+            return JsonResponse({"success": True, "user": profile.to_dict()}, status=200)
 
         except KeyError as e:
             return JsonResponse({"success": False, "error": f"Campo obrigatório faltando: {str(e)}"}, status=400)
