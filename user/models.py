@@ -29,6 +29,7 @@ class Profile(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255)
+    cpf = models.CharField(max_length=11, null=True, blank=True)
     birth_date = models.DateField()
     gender = models.CharField(max_length=10, choices=Gender.choices, null=True, blank=True)
     role = models.CharField(max_length=10, choices=Role.choices)

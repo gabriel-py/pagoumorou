@@ -1,12 +1,15 @@
+from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import radians, cos, sin, asin, sqrt
 
-from pagoumorou.constants import PERIOD_VERBOSE, PeriodChoices
-from pagoumorou.models import Room, RoomPrice, RoomPhoto, RoomFeature
+from pagoumorou.constants import PERIOD_VERBOSE, PeriodChoices, StatusChoices
+from pagoumorou.models import Proposal, Room, RoomPrice, RoomPhoto, RoomFeature
 import json
+
+from user.models import Profile
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float):
@@ -179,3 +182,100 @@ class RoomAPI(APIView):
                 "features": features,
             }
         })
+
+
+class ProposalAPI(APIView):
+    def get(self, request, proposal_id=None):
+        if not proposal_id:
+            return Response({"error": "Proposal ID is required"}, status=400)
+
+        try:
+            proposal = Proposal.objects.select_related('profile', 'room__property__address').get(id=proposal_id)
+        except Proposal.DoesNotExist:
+            return Response({"error": "Proposal not found"}, status=404)
+
+        data = {
+            "proposal_id": proposal.id,
+            "full_name": proposal.profile.name,
+            "email": proposal.profile.user.email,
+            "cpf": proposal.profile.cpf,
+            "birth_date": proposal.profile.birth_date,
+            "gender": proposal.profile.gender,
+            "room_id": proposal.room.id,
+            "room_number": proposal.room.room_number,
+            "property": proposal.room.property.name,
+            "proposed_price": float(proposal.proposed_price),
+            "period": proposal.period,
+            "move_in_date": proposal.move_in_date,
+            "move_out_date": proposal.move_out_date,
+            "message": proposal.message,
+            "status": proposal.status,
+            "created_at": proposal.created_at,
+        }
+
+        return Response({"success": True, "data": data}, status=200)
+
+    def post(self, request):
+        data = json.loads(request.body)
+        room_id = data.get("roomId")
+
+        try:
+            room = Room.objects.get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        period_int = int(data.get("stayInPeriod"))
+        period_map = {
+            7: PeriodChoices.WEEK,
+            15: PeriodChoices.BIWEEK,
+            30: PeriodChoices.MONTH,
+            180: PeriodChoices.SEMESTER,
+            365: PeriodChoices.YEAR,
+        }
+        period = period_map.get(period_int)
+        if not period:
+            return Response({"error": "Invalid stayInPeriod"}, status=400)
+
+        try:
+            email = data.get("email")
+            full_name = data.get("fullName")
+            cpf = data.get("cpf")
+            birth_date = data.get("birthDate")
+            gender = data.get("gender")
+
+            user, _ = User.objects.get_or_create(
+                username=email,
+                defaults={"email": email, "first_name": full_name}
+            )
+
+            profile, _ = Profile.objects.get_or_create(
+                user=user,
+                defaults={
+                    "name": full_name,
+                    "cpf": cpf,
+                    "birth_date": birth_date,
+                    "gender": gender,
+                }
+            )
+
+            move_in_date = datetime.strptime(data.get("moveDate"), "%Y-%m-%d").date()
+            move_out_date = move_in_date + timedelta(days=period_int)
+
+            proposal = Proposal.objects.create(
+                profile=profile,
+                room=room,
+                proposed_price=data.get("suggestedPrice"),
+                period=period,
+                move_in_date=move_in_date,
+                move_out_date=move_out_date,
+                message=data.get("message"),
+                status=StatusChoices.PENDING,
+            )
+
+            return Response({
+                "success": True,
+                "proposal_id": proposal.id
+            }, status=201)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
