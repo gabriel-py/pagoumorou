@@ -5,7 +5,7 @@ from django.db.models import Q
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
 
-from pagoumorou.constants import PeriodChoices
+from pagoumorou.constants import PERIOD_VERBOSE, PeriodChoices
 from pagoumorou.models import Room, RoomPrice, RoomPhoto, RoomFeature
 import json
 
@@ -94,12 +94,18 @@ class SearchAPI(APIView):
                 "property": room.property.name,
                 "address": {
                     "street": addr.street if addr else None,
+                    "number": addr.number if addr else None,
+                    "neighborhood": addr.neighborhood if addr else None,
                     "city": addr.city if addr else None,
                     "state": addr.state if addr else None,
+                },
+                "destination": {
+                    "name": destination.name,
                     "lat": destination.latitude,
                     "lon": destination.longitude
                 },
                 "price": price,
+                "period": PERIOD_VERBOSE.get(period, period),
                 "accept_men": room.accept_men,
                 "accept_women": room.accept_women,
                 "shared": room.shared,
@@ -107,4 +113,4 @@ class SearchAPI(APIView):
                 "features": features,
             })
 
-        return Response({"results": matching_rooms})
+        return Response({"results": matching_rooms, "success": True})

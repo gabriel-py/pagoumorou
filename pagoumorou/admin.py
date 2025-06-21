@@ -8,7 +8,8 @@ from .models import (
     RoomFeature,
     RoomPhoto,
     Proposal,
-    Rental
+    Rental,
+    RoomPrice
 )
 
 admin.site.register(Destination)
@@ -20,3 +21,4 @@ admin.site.register(RoomFeature)
 admin.site.register(RoomPhoto)
 admin.site.register(Proposal)
 admin.site.register(Rental)
+admin.site.register(RoomPrice)
