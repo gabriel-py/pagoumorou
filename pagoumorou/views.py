@@ -1,7 +1,6 @@
-from typing import List
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Q
+from rest_framework import status
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
 
@@ -114,3 +113,69 @@ class SearchAPI(APIView):
             })
 
         return Response({"results": matching_rooms, "success": True})
+
+
+class RoomAPI(APIView):
+    def get(self, request, room_id):
+        try:
+            room = Room.objects.select_related('property__address', 'property__destination').get(id=room_id)
+        except Room.DoesNotExist:
+            return Response({"error": "Room not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Endereço e destino
+        addr = room.property.address
+        destination = room.property.destination
+
+        # Preços disponíveis
+        prices = RoomPrice.objects.filter(room=room)
+        price_list = [
+            {
+                "period": PERIOD_VERBOSE.get(price.period, price.period),
+                "raw_period": price.period,
+                "price": float(price.price)
+            }
+            for price in prices
+        ]
+
+        # Fotos
+        photos = list(RoomPhoto.objects.filter(room=room).values_list('url', flat=True))
+
+        # Features
+        features = list(
+            RoomFeature.objects.filter(room=room)
+            .select_related('feature')
+            .values_list('feature__name', flat=True)
+        )
+
+        return Response({
+            "success": True,
+            "data": {
+                "room_id": room.id,
+                "room_number": room.room_number,
+                "property": room.property.name,
+                "property_description": room.property.description,
+                "property_rules": room.property.rules,
+                "description": room.description,
+                "rules": room.rules,
+                "available_now": room.available_now,
+                "available_from": room.available_from,
+                "address": {
+                    "street": addr.street if addr else None,
+                    "number": addr.number if addr else None,
+                    "neighborhood": addr.neighborhood if addr else None,
+                    "city": addr.city if addr else None,
+                    "state": addr.state if addr else None,
+                },
+                "destination": {
+                    "name": destination.name if destination else None,
+                    "lat": destination.latitude if destination else None,
+                    "lon": destination.longitude if destination else None,
+                },
+                "prices": price_list,
+                "accept_men": room.accept_men,
+                "accept_women": room.accept_women,
+                "shared": room.shared,
+                "photos": photos,
+                "features": features,
+            }
+        })

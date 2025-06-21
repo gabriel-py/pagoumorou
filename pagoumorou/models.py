@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from django.db import models
 from pagoumorou.constants import PeriodChoices, StatusChoices
 from user.models import Address, Profile
@@ -35,6 +36,7 @@ class Property(models.Model):
     rules = models.TextField()
     address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)
     destination = models.ForeignKey(Destination, on_delete=models.PROTECT)
+    description = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_type_display()})" # type: ignore[attr-defined]
@@ -59,6 +61,10 @@ class Room(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE)
     accept_men = models.BooleanField(default=True)
     accept_women = models.BooleanField(default=True)
+    available_now = models.BooleanField(default=False)
+    available_from = models.DateTimeField(default=datetime(2025, 7, 5, 0, 0))
+    description = models.TextField(null=True, blank=True)
+    rules = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return f"Room {self.room_number} - {self.property.name}"
