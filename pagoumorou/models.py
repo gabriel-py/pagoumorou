@@ -15,6 +15,8 @@ class Destination(models.Model):
     destination_type = models.CharField(max_length=2, choices=DestinationType.choices)
     parent_destination_id = models.IntegerField(null=True, blank=True)
     image_url = models.URLField(null=True, blank=True)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_destination_type_display()})" # type: ignore[attr-defined]
