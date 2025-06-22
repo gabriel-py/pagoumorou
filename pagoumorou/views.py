@@ -12,22 +12,11 @@ import json
 from user.models import Profile
 
 
-def haversine(lat1: float, lon1: float, lat2: float, lon2: float):
-    """Calcula a distância em km entre dois pontos (lat/lon)"""
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
-    return 6371 * 2 * asin(sqrt(a))
-
-
 class SearchAPI(APIView):
     def post(self, request):
         data = json.loads(request.body)
 
-        lat = data.get('lat')
-        lon = data.get('lon')
-        location = data.get('location')
+        destinationId = int(data.get('destinationId'))
         gender = data.get('gender')
         move_date = data.get('moveDate')
         stay_duration = int(data.get('stayDuration'))
@@ -46,7 +35,8 @@ class SearchAPI(APIView):
 
         # 2. Busca quartos com precificação para o período
         rooms = Room.objects.filter(
-            roomprice__period=period
+            roomprice__period=period,
+            property__destination_id=destinationId
         ).select_related('property__address', 'property__destination')
 
         # 3. Filtro de gênero
@@ -63,18 +53,10 @@ class SearchAPI(APIView):
                 rental__end_date__gte=move_date_obj
             )
 
-        # 5. Filtro por distância (raio de 10km)
-        RADIUS_KM = 10
         matching_rooms = []
         for room in rooms:
             addr = room.property.address
             destination = room.property.destination
-            if not destination or not destination.latitude or not destination.longitude:
-                continue
-
-            distance = haversine(lat, lon, float(destination.latitude), float(destination.longitude))
-            if distance > RADIUS_KM:
-                continue
 
             # Preço
             room_price = RoomPrice.objects.filter(room=room, period=period).first()
