@@ -125,7 +125,7 @@ class Proposal(models.Model):
     reviewed_by = models.ForeignKey(Profile, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_proposals')
 
     def __str__(self):
-        return f"Proposal by {self.profile.name} for {self.room.room_number}"
+        return f"Proposal by {self.profile.name} for {self.room.property}, room {self.room.room_number} "
 
     class Meta:
         db_table = "proposal"
