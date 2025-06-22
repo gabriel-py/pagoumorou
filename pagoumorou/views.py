@@ -1,9 +1,9 @@
 from django.contrib.auth.models import User
+from django.db.models import Prefetch
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt
 
 from pagoumorou.constants import PERIOD_VERBOSE, PeriodChoices, StatusChoices
 from pagoumorou.models import Proposal, Room, RoomPrice, RoomPhoto, RoomFeature
@@ -37,7 +37,13 @@ class SearchAPI(APIView):
         rooms = Room.objects.filter(
             roomprice__period=period,
             property__destination_id=destinationId
-        ).select_related('property__address', 'property__destination')
+        ).select_related(
+            'property__address', 'property__destination'
+        ).prefetch_related(
+            Prefetch('roomphoto_set', queryset=RoomPhoto.objects.only('room_id', 'url')),
+            Prefetch('roomfeature_set', queryset=RoomFeature.objects.select_related('feature').only('room_id', 'feature__name')),
+            Prefetch('roomprice_set', queryset=RoomPrice.objects.filter(period=period).only('room_id', 'price', 'period')),
+        )
 
         # 3. Filtro de gênero
         if gender == "male":
@@ -59,18 +65,14 @@ class SearchAPI(APIView):
             destination = room.property.destination
 
             # Preço
-            room_price = RoomPrice.objects.filter(room=room, period=period).first()
+            room_price = next((rp for rp in room.roomprice_set.all() if rp.period == period), None)
             price = float(room_price.price) if room_price else 0.0
 
             # Fotos
-            photos = list(RoomPhoto.objects.filter(room=room).values_list('url', flat=True))
+            photos = [photo.url for photo in room.roomphoto_set.all()]
 
             # Features
-            features = list(
-                RoomFeature.objects.filter(room=room)
-                .select_related('feature')
-                .values_list('feature__name', flat=True)
-            )
+            features = [rf.feature.name for rf in room.roomfeature_set.all()]
 
             matching_rooms.append({
                 "room_id": room.id,
