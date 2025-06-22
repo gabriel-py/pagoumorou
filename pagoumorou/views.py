@@ -1,9 +1,11 @@
+from django.core.cache import cache
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.db.models import Prefetch
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt
 
 from pagoumorou.constants import PERIOD_VERBOSE, PeriodChoices, StatusChoices
 from pagoumorou.models import Proposal, Room, RoomPrice, RoomPhoto, RoomFeature
@@ -21,6 +23,13 @@ class SearchAPI(APIView):
         move_date = data.get('moveDate')
         stay_duration = int(data.get('stayDuration'))
 
+        cache_key = f"search_{destinationId}_{gender}_{move_date}_{stay_duration}"
+        cached_results = cache.get(cache_key)
+
+        if cached_results:
+            return Response({"results": cached_results, "success": True})
+
+
         # 1. Mapeia duração para período
         period_map = {
             7: PeriodChoices.WEEK,
@@ -37,7 +46,13 @@ class SearchAPI(APIView):
         rooms = Room.objects.filter(
             roomprice__period=period,
             property__destination_id=destinationId
-        ).select_related('property__address', 'property__destination')
+        ).select_related(
+            'property__address', 'property__destination'
+        ).prefetch_related(
+            Prefetch('roomphoto_set', queryset=RoomPhoto.objects.only('room_id', 'url')),
+            Prefetch('roomfeature_set', queryset=RoomFeature.objects.select_related('feature').only('room_id', 'feature__name')),
+            Prefetch('roomprice_set', queryset=RoomPrice.objects.filter(period=period).only('room_id', 'price', 'period')),
+        )
 
         # 3. Filtro de gênero
         if gender == "male":
@@ -59,18 +74,14 @@ class SearchAPI(APIView):
             destination = room.property.destination
 
             # Preço
-            room_price = RoomPrice.objects.filter(room=room, period=period).first()
+            room_price = next((rp for rp in room.roomprice_set.all() if rp.period == period), None)
             price = float(room_price.price) if room_price else 0.0
 
             # Fotos
-            photos = list(RoomPhoto.objects.filter(room=room).values_list('url', flat=True))
+            photos = [photo.url for photo in room.roomphoto_set.all()]
 
             # Features
-            features = list(
-                RoomFeature.objects.filter(room=room)
-                .select_related('feature')
-                .values_list('feature__name', flat=True)
-            )
+            features = [rf.feature.name for rf in room.roomfeature_set.all()]
 
             matching_rooms.append({
                 "room_id": room.id,
@@ -97,11 +108,19 @@ class SearchAPI(APIView):
                 "features": features,
             })
 
+        cache.set(cache_key, matching_rooms, settings.CACHE_TTL)
+
         return Response({"results": matching_rooms, "success": True})
 
 
 class RoomAPI(APIView):
     def get(self, request, room_id):
+        cache_key = f"room_details_{room_id}"
+        cached_data = cache.get(cache_key)
+
+        if cached_data:
+            return Response({"success": True, "data": cached_data})
+
         try:
             room = Room.objects.select_related('property__address', 'property__destination').get(id=room_id)
         except Room.DoesNotExist:
@@ -132,38 +151,40 @@ class RoomAPI(APIView):
             .values_list('feature__name', flat=True)
         )
 
-        return Response({
-            "success": True,
-            "data": {
-                "room_id": room.id,
-                "room_number": room.room_number,
-                "property": room.property.name,
-                "property_description": room.property.description,
-                "property_rules": room.property.rules,
-                "description": room.description,
-                "rules": room.rules,
-                "available_now": room.available_now,
-                "available_from": room.available_from,
-                "address": {
-                    "street": addr.street if addr else None,
-                    "number": addr.number if addr else None,
-                    "neighborhood": addr.neighborhood if addr else None,
-                    "city": addr.city if addr else None,
-                    "state": addr.state if addr else None,
-                },
-                "destination": {
-                    "name": destination.name if destination else None,
-                    "lat": destination.latitude if destination else None,
-                    "lon": destination.longitude if destination else None,
-                },
-                "prices": price_list,
-                "accept_men": room.accept_men,
-                "accept_women": room.accept_women,
-                "shared": room.shared,
-                "photos": photos,
-                "features": features,
-            }
-        })
+        response_data = {
+            "room_id": room.id,
+            "room_number": room.room_number,
+            "property": room.property.name,
+            "property_description": room.property.description,
+            "property_rules": room.property.rules,
+            "description": room.description,
+            "rules": room.rules,
+            "available_now": room.available_now,
+            "available_from": room.available_from,
+            "address": {
+                "street": addr.street if addr else None,
+                "number": addr.number if addr else None,
+                "neighborhood": addr.neighborhood if addr else None,
+                "city": addr.city if addr else None,
+                "state": addr.state if addr else None,
+            },
+            "destination": {
+                "name": destination.name if destination else None,
+                "lat": destination.latitude if destination else None,
+                "lon": destination.longitude if destination else None,
+            },
+            "prices": price_list,
+            "accept_men": room.accept_men,
+            "accept_women": room.accept_women,
+            "shared": room.shared,
+            "photos": photos,
+            "features": features,
+        }
+
+        # Cache the results
+        cache.set(cache_key, response_data, timeout=settings.CACHE_TTL)
+
+        return Response({"success": True, "data": response_data})
 
 
 class ProposalAPI(APIView):

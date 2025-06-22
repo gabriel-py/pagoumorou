@@ -109,6 +109,28 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+    # For production, consider Redis or Memcached:
+    # 'default': {
+    #     'BACKEND': 'django_redis.cache.RedisCache',
+    #     'LOCATION': 'redis://127.0.0.1:6379/1',
+    #     'OPTIONS': {
+    #         'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+    #     }
+    # }
+    # 'default': {
+    #     'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
+    #     'LOCATION': '127.0.0.1:11211',
+    # }
+}
+
+# Optional: Time-to-live (TTL) for cache entries in seconds
+CACHE_TTL = 60 * 5  # Cache for 5 minutes by default
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
